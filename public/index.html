@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Universal POS">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="application-name" content="Universal POS">
+    <meta name="msapplication-TileColor" content="#667eea">
+    <meta name="msapplication-config" content="/browserconfig.xml">
+    <meta name="description" content="Universal POS - A modular Point-of-Sale platform for restaurants, retail, and more">
+    
+    <title>Universal POS</title>
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json">
+    
+    <!-- Favicon and Icons -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180.png">
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png">
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png">
+    <link rel="apple-touch-icon" sizes="120x120" href="/icons/icon-120.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="/icons/icon-114.png">
+    <link rel="apple-touch-icon" sizes="76x76" href="/icons/icon-76.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72.png">
+    <link rel="apple-touch-icon" sizes="60x60" href="/icons/icon-60.png">
+    <link rel="apple-touch-icon" sizes="57x57" href="/icons/icon-57.png">
+    
+    <!-- Splash screens for iOS -->
+    <link rel="apple-touch-startup-image" href="/icons/splash-640x1136.png" media="(device-width: 320px) and (device-height: 568px)">
+    <link rel="apple-touch-startup-image" href="/icons/splash-750x1334.png" media="(device-width: 375px) and (device-height: 667px)">
+    <link rel="apple-touch-startup-image" href="/icons/splash-1242x2208.png" media="(device-width: 414px) and (device-height: 736px)">
+    <link rel="apple-touch-startup-image" href="/icons/splash-1125x2436.png" media="(device-width: 375px) and (device-height: 812px)">
+    
+    <link rel="stylesheet" href="styles.css">
+    
+    <!-- Preload critical resources -->
+    <link rel="preconnect" href="/">
+</head>
+<body>
+    <!-- Toast Notifications Container -->
+    <div id="toast-container"></div>
+    
+    <div id="app">
+        <!-- Login Screen -->
+        <div id="login-screen" class="screen">
+            <h1>Universal POS</h1>
+            <form id="login-form">
+                <input type="text" id="username" placeholder="Username" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+            </form>
+            <div id="login-message"></div>
+        </div>
+
+        <!-- Module Dashboard -->
+        <div id="module-screen" class="screen hidden">
+            <header class="module-header">
+                <div class="user-info">
+                    <span id="dashboard-user"></span>
+                    <button id="dashboard-logout-btn">Logout</button>
+                </div>
+                <div class="module-header-title">Select Module</div>
+            </header>
+            <div class="module-content">
+                <div class="module-grid">
+                    <button class="module-card" id="module-restaurant-btn" data-module="restaurant">
+                        <h2>Restaurant</h2>
+                        <p>Tables, orders, kitchen, and payments.</p>
+                        <span class="module-status enabled">Enabled</span>
+                    </button>
+                    <div class="module-card disabled" data-module="retail">
+                        <h2>Retail</h2>
+                        <p>Barcode, discounts, and checkout.</p>
+                        <span class="module-status">Coming soon</span>
+                    </div>
+                    <div class="module-card disabled" data-module="warehouse">
+                        <h2>Warehouse</h2>
+                        <p>Inventory, stock moves, and receiving.</p>
+                        <span class="module-status">Coming soon</span>
+                    </div>
+                    <div class="module-card" data-module="loyalty">
+                        <h2>Loyalty</h2>
+                        <p>CRM, points, and rewards.</p>
+                    </div>
+                </div>
+                
+                <!-- System Status Panel -->
+                <div id="system-status-panel" class="system-status-panel">
+                    <h3>🖥️ System Status</h3>
+                    <div id="system-status-content">
+                        <div class="status-loading">Loading...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loyalty Module Screen -->
+        <div id="loyalty-screen" class="screen hidden">
+            <header class="module-header">
+                <div class="user-info">
+                    <span id="loyalty-user"></span>
+                    <button id="loyalty-modules-btn" class="nav-btn">← Modules</button>
+                </div>
+                <div class="module-title">
+                    <h1>🎁 Loyalty & CRM</h1>
+                </div>
+                <div class="header-actions">
+                    <button id="loyalty-add-customer-btn" class="action-btn primary">+ New Customer</button>
+                </div>
+            </header>
+
+            <div class="loyalty-container">
+                <!-- Loyalty Navigation -->
+                <nav class="loyalty-nav">
+                    <button class="loyalty-nav-btn active" data-panel="customers">👥 Customers</button>
+                    <button class="loyalty-nav-btn" data-panel="dashboard">📊 Dashboard</button>
+                    <button class="loyalty-nav-btn" data-panel="programs">⭐ Programs</button>
+                </nav>
+
+                <!-- Customers Panel -->
+                <section id="loyalty-customers-panel" class="loyalty-panel">
+                    <div class="loyalty-search-bar">
+                        <input type="text" id="customer-search" placeholder="Search by name, phone, or loyalty number...">
+                        <button id="customer-search-btn">🔍</button>
+                    </div>
+                    <div id="customers-list" class="customers-grid">
+                        <!-- Customer cards load here -->
+                    </div>
+                    <div class="pagination-controls">
+                        <button id="customers-prev-btn">← Previous</button>
+                        <span id="customers-page-info">Page 1</span>
+                        <button id="customers-next-btn">Next →</button>
+                    </div>
+                </section>
+
+                <!-- Dashboard Panel -->
+                <section id="loyalty-dashboard-panel" class="loyalty-panel hidden">
+                    <div class="loyalty-stats-grid" id="loyalty-stats">
+                        <!-- Stats cards load here -->
+                    </div>
+                    <div class="loyalty-sections">
+                        <div class="loyalty-section">
+                            <h3>Recent Activity</h3>
+                            <div id="recent-activity-list" class="activity-list">
+                                <!-- Recent transactions load here -->
+                            </div>
+                        </div>
+                        <div class="loyalty-section">
+                            <h3>Top Customers</h3>
+                            <div id="top-customers-list" class="top-customers-list">
+                                <!-- Top customers load here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Programs Panel -->
+                <section id="loyalty-programs-panel" class="loyalty-panel hidden">
+                    <div id="programs-list" class="programs-grid">
+                        <!-- Program cards load here -->
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Customer Detail Modal -->
+        <div id="customer-detail-modal" class="modal hidden">
+            <div class="modal-content modal-large">
+                <div class="modal-header">
+                    <h2 id="customer-detail-title">Customer Details</h2>
+                    <button class="modal-close" id="close-customer-detail">&times;</button>
+                </div>
+                <div id="customer-detail-content" class="customer-detail-content">
+                    <!-- Customer details load here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Customer Modal -->
+        <div id="add-customer-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>New Customer</h2>
+                    <button class="modal-close" id="close-add-customer">&times;</button>
+                </div>
+                <form id="add-customer-form" class="customer-form">
+                    <div class="form-group">
+                        <label for="new-customer-firstname">First Name *</label>
+                        <input type="text" id="new-customer-firstname" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-customer-lastname">Last Name *</label>
+                        <input type="text" id="new-customer-lastname" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="new-customer-phone">Phone</label>
+                        <input type="tel" id="new-customer-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-customer-email">Email</label>
+                        <input type="email" id="new-customer-email">
+                    </div>
+                    <div class="form-group">
+                        <label for="new-customer-dob">Date of Birth</label>
+                        <input type="date" id="new-customer-dob">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-add-customer" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Create Customer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Edit Customer Modal -->
+        <div id="edit-customer-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>✏️ Edit Customer</h2>
+                    <button class="modal-close" id="close-edit-customer">&times;</button>
+                </div>
+                <form id="edit-customer-form" class="customer-form">
+                    <input type="hidden" id="edit-customer-id">
+                    <div class="form-group">
+                        <label for="edit-customer-firstname">First Name *</label>
+                        <input type="text" id="edit-customer-firstname" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-customer-lastname">Last Name *</label>
+                        <input type="text" id="edit-customer-lastname" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-customer-phone">Phone</label>
+                        <input type="tel" id="edit-customer-phone">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-customer-email">Email</label>
+                        <input type="email" id="edit-customer-email">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-customer-dob">Date of Birth</label>
+                        <input type="date" id="edit-customer-dob">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-edit-customer" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-primary">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Delete Customer Confirmation Modal -->
+        <div id="delete-customer-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>⚠️ Delete Customer</h2>
+                    <button class="modal-close" id="close-delete-customer">&times;</button>
+                </div>
+                <form id="delete-customer-form" class="customer-form">
+                    <div class="delete-warning">
+                        <p>You are about to delete customer: <strong id="delete-customer-name"></strong></p>
+                        <p class="warning-text">This action requires manager/admin authentication.</p>
+                    </div>
+                    <input type="hidden" id="delete-customer-id">
+                    <div class="form-group">
+                        <label for="delete-auth-username">Username *</label>
+                        <input type="text" id="delete-auth-username" required autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="delete-auth-password">Password *</label>
+                        <input type="password" id="delete-auth-password" required autocomplete="off">
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancel-delete-customer" class="btn-secondary">Cancel</button>
+                        <button type="submit" class="btn-danger">Delete Customer</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Restaurant Module Screen -->
+        <div id="restaurant-screen" class="screen hidden">
+            <header class="module-header">
+                <div class="user-info">
+                    <span id="restaurant-user"></span>
+                    <button id="restaurant-back-btn">Modules</button>
+                </div>
+                <div class="module-header-center">
+                    <div class="module-header-title">Restaurant Module</div>
+                    <div id="day-status" class="day-status"></div>
+                </div>
+                <div class="user-info">
+                    <button id="language-toggle-btn" class="lang-toggle">🇲🇲 MY</button>
+                    <button id="restaurant-pos-btn" class="nav-toggle active">🍽️ Menu/POS</button>
+                    <button id="restaurant-logout-btn">Logout</button>
+                </div>
+            </header>
+            <div class="restaurant-content">
+                <div class="restaurant-tabs">
+                    <button class="restaurant-tab active" data-tab="tables">Tables</button>
+                    <button class="restaurant-tab" data-tab="reservations">Reservations</button>
+                    <button class="restaurant-tab" data-tab="kitchen">Kitchen</button>
+                </div>
+                <section id="restaurant-tables-panel" class="restaurant-panel">
+                    <div class="panel-header">
+                        <h2>Tables</h2>
+                        <div class="panel-actions">
+                            <button id="add-table-btn">Add Table</button>
+                            <button id="refresh-tables-btn">Refresh</button>
+                        </div>
+                    </div>
+                    <div id="table-grid" class="table-grid">
+                        <!-- Tables load here -->
+                    </div>
+                </section>
+                <section id="restaurant-reservations-panel" class="restaurant-panel hidden">
+                    <div class="panel-header">
+                        <h2>Reservations</h2>
+                        <div class="panel-actions">
+                            <input type="date" id="reservation-date">
+                            <button id="add-reservation-btn">Add Reservation</button>
+                            <button id="refresh-reservations-btn">Refresh</button>
+                        </div>
+                    </div>
+                    <div class="reservation-columns">
+                        <div>
+                            <h3>Upcoming</h3>
+                            <div id="reservation-list" class="reservation-list">
+                                <!-- Reservations load here -->
+                            </div>
+                        </div>
+                        <div>
+                            <h3>Waitlist</h3>
+                            <div class="panel-actions">
+                                <button id="add-waitlist-btn">Add Waitlist</button>
+                                <button id="refresh-waitlist-btn">Refresh</button>
+                            </div>
+                            <div id="waitlist-list" class="waitlist-list">
+                                <!-- Waitlist load here -->
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <section id="restaurant-kitchen-panel" class="restaurant-panel hidden kitchen-fullscreen">
+                    <!-- Kitchen Left Sidebar -->
+                    <div class="kitchen-sidebar">
+                        <div class="kitchen-sidebar-nav">
+                            <button class="kitchen-nav-btn active" data-view="checker">
+                                <span class="icon">☰</span>
+                                <span>CHECKER</span>
+                            </button>
+                            <button class="kitchen-nav-btn" data-view="kitchen">
+                                <span class="icon">🍳</span>
+                                <span>KITCHEN VIEW</span>
+                            </button>
+                            <button class="kitchen-nav-btn" data-view="completed">
+                                <span class="icon">✓</span>
+                                <span>COMPLETED</span>
+                            </button>
+                        </div>
+                        <div class="kitchen-stats">
+                            <div class="kitchen-stat">
+                                <div class="stat-label">PENDING ORDER</div>
+                                <div class="stat-value" id="stat-pending-orders">0</div>
+                            </div>
+                            <div class="kitchen-stat">
+                                <div class="stat-label">LONGEST WAIT (MIN)</div>
+                                <div class="stat-value" id="stat-longest-wait">0:00</div>
+                            </div>
+                            <div class="kitchen-stat">
+                                <div class="stat-label">ACTIVE TABLES</div>
+                                <div class="stat-value" id="stat-active-tables">0</div>
+                            </div>
+                            <div class="kitchen-stat">
+                                <div class="stat-label">ITEMS IN QUEUE</div>
+                                <div class="stat-value" id="stat-queue-items">0</div>
+                            </div>
+                        </div>
+                        <button class="kitchen-settings-btn">⚙️ SETTING</button>
+                    </div>
+
+                    <!-- Kitchen Main Content -->
+                    <div class="kitchen-main">
+                        <div class="kitchen-table-grid" id="kitchen-table-grid">
+                            <!-- Table cards will load here -->
+                        </div>
+                    </div>
+
+                    <!-- Kitchen Right Sidebar (Completed) -->
+                    <div class="kitchen-completed-sidebar" id="kitchen-completed-sidebar">
+                        <div class="completed-header">COMPLETED</div>
+                        <div class="completed-list" id="completed-list">
+                            <!-- Completed items here -->
+                        </div>
+                    </div>
+
+                    <!-- Kitchen Bottom Bar -->
+                    <div class="kitchen-bottom-bar">
+                        <button class="kitchen-action-btn" id="kitchen-search-btn">🔍 SEARCH</button>
+                        <button class="kitchen-action-btn" id="refresh-kitchen-btn">🔄 REFRESH</button>
+                        <button class="kitchen-action-btn" id="kitchen-prev-btn">⏪ PREVIOUS</button>
+                        <button class="kitchen-action-btn" id="kitchen-next-btn">⏩ NEXT</button>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- Main POS Screen -->
+        <div id="pos-screen" class="screen hidden">
+            <header>
+                <div class="user-info">
+                    <span id="current-user"></span>
+                    <button id="pos-tables-btn" class="nav-toggle">📋 Tables</button>
+                    <button id="modules-btn">Modules</button>
+                    <button id="logout-btn">Logout</button>
+                </div>
+                <div class="order-info">
+                    <span id="table-label" class="hidden">Table <span id="current-table"></span></span>
+                    <span>Order #<span id="order-number">-</span></span>
+                    <span>Total: ฿<span id="order-total">0.00</span></span>
+                </div>
+            </header>
+
+            <div class="main-content">
+                <!-- Product Catalog -->
+                <div class="catalog-section">
+                    <div class="catalog-header">
+                        <h2>Products</h2>
+                        <button id="menu-edit-toggle" class="edit-toggle">Edit Menu</button>
+                    </div>
+                    <div id="category-tabs" class="category-tabs">
+                        <!-- Categories will be loaded dynamically -->
+                        <button class="category-tab active" data-category="all">All</button>
+                    </div>
+                    <div id="product-grid" class="product-grid">
+                        <!-- Products will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Order/Cart -->
+                <div class="order-section">
+                    <h2>Current Order</h2>
+                    <!-- Customer Lookup for Loyalty Points -->
+                    <div id="order-customer" class="order-customer">
+                        <button id="lookup-customer-btn" class="lookup-customer-btn">
+                            👤 Add Customer
+                        </button>
+                    </div>
+                    <div id="order-items" class="order-items">
+                        <!-- Order items will be displayed here -->
+                    </div>
+                    <div class="order-actions">
+                        <button id="clear-order-btn" class="action-btn secondary">Clear Order</button>
+                        <button id="send-kitchen-btn" class="action-btn kitchen">🔥 Send to Kitchen</button>
+                        <button id="pay-btn" class="action-btn primary">Pay</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payment Modal -->
+            <div id="payment-modal" class="modal hidden">
+                <div class="modal-content payment-modal-content">
+                    <h2>Payment</h2>
+                    <div class="payment-amount">
+                        <span>Total: ฿<span id="payment-total">0.00</span></span>
+                    </div>
+                    
+                    <!-- Item-level payment selection -->
+                    <div class="payment-items-section">
+                        <h3>Select payment method for each item:</h3>
+                        <div id="payment-items-list" class="payment-items-list">
+                            <!-- Items will be populated here -->
+                        </div>
+                    </div>
+                    
+                    <!-- Quick select all buttons -->
+                    <div class="quick-select-buttons">
+                        <button class="quick-select-btn" data-method="cash">💵 All Cash</button>
+                        <button class="quick-select-btn" data-method="qr">📱 All QR</button>
+                    </div>
+                    
+                    <div class="payment-summary">
+                        <div class="payment-summary-row">
+                            <span>💵 Cash Total:</span>
+                            <span id="cash-total">฿0.00</span>
+                        </div>
+                        <div class="payment-summary-row">
+                            <span>📱 QR Total:</span>
+                            <span id="qr-total">฿0.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="payment-actions">
+                        <button id="cancel-payment-btn">Cancel</button>
+                        <button id="confirm-payment-btn">Confirm Payment</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Receipt Modal -->
+            <div id="receipt-modal" class="modal hidden">
+                <div class="modal-content">
+                    <h2>Receipt</h2>
+                    <div id="receipt-content">
+                        <!-- Receipt will be displayed here -->
+                    </div>
+                    <button id="close-receipt-btn">Close</button>
+                </div>
+            </div>
+
+            <!-- Void/Discount/Comp modals are created dynamically by app.js with proper event binding -->
+        </div>
+
+        <!-- Customer Lookup Modal for POS -->
+        <div id="customer-lookup-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>👤 Find Customer</h2>
+                    <button class="modal-close" id="close-customer-lookup">&times;</button>
+                </div>
+                <div class="customer-lookup-body">
+                    <div class="customer-lookup-search">
+                        <input type="text" id="customer-lookup-input" placeholder="Phone, name, or loyalty number...">
+                        <button id="customer-lookup-search-btn">🔍</button>
+                    </div>
+                    <div id="customer-lookup-results" class="customer-lookup-results">
+                        <!-- Results will appear here -->
+                    </div>
+                    <div class="customer-lookup-actions">
+                        <button id="customer-lookup-new-btn" class="action-btn secondary">+ New Customer</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PWA Install Prompt -->
+        <div id="pwa-install-prompt" class="pwa-install-prompt hidden">
+            <div class="pwa-install-content">
+                <div class="pwa-install-icon">📱</div>
+                <div class="pwa-install-text">
+                    <strong>Install Universal POS</strong>
+                    <span>Add to your home screen for quick access</span>
+                </div>
+                <button id="pwa-install-btn" class="pwa-install-btn">Install</button>
+                <button id="pwa-dismiss-btn" class="pwa-dismiss-btn">✕</button>
+            </div>
+        </div>
+        
+        <!-- Offline Indicator -->
+        <div id="offline-indicator" class="offline-indicator hidden">
+            <span>📡 You're offline - some features may be limited</span>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    
+    <!-- PWA Registration -->
+    <script>
+        // Register Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then((registration) => {
+                        console.log('✅ Service Worker registered:', registration.scope);
+                        
+                        // Check for updates
+                        registration.addEventListener('updatefound', () => {
+                            const newWorker = registration.installing;
+                            newWorker.addEventListener('statechange', () => {
+                                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                    // New version available
+                                    if (confirm('A new version of Universal POS is available. Reload to update?')) {
+                                        window.location.reload();
+                                    }
+                                }
+                            });
+                        });
+                    })
+                    .catch((error) => {
+                        console.log('❌ Service Worker registration failed:', error);
+                    });
+            });
+        }
+        
+        // PWA Install Prompt
+        let deferredPrompt;
+        const installPrompt = document.getElementById('pwa-install-prompt');
+        const installBtn = document.getElementById('pwa-install-btn');
+        const dismissBtn = document.getElementById('pwa-dismiss-btn');
+        
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show install prompt after a delay if not already installed
+            setTimeout(() => {
+                if (deferredPrompt && !localStorage.getItem('pwa-install-dismissed')) {
+                    installPrompt.classList.remove('hidden');
+                }
+            }, 3000);
+        });
+        
+        if (installBtn) {
+            installBtn.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const { outcome } = await deferredPrompt.userChoice;
+                    console.log('PWA install outcome:', outcome);
+                    deferredPrompt = null;
+                    installPrompt.classList.add('hidden');
+                }
+            });
+        }
+        
+        if (dismissBtn) {
+            dismissBtn.addEventListener('click', () => {
+                installPrompt.classList.add('hidden');
+                localStorage.setItem('pwa-install-dismissed', 'true');
+            });
+        }
+        
+        window.addEventListener('appinstalled', () => {
+            console.log('✅ Universal POS was installed');
+            installPrompt.classList.add('hidden');
+            deferredPrompt = null;
+        });
+        
+        // Offline/Online detection
+        const offlineIndicator = document.getElementById('offline-indicator');
+        
+        function updateOnlineStatus() {
+            if (navigator.onLine) {
+                offlineIndicator.classList.add('hidden');
+            } else {
+                offlineIndicator.classList.remove('hidden');
+            }
+        }
+        
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+    </script>
+</body>
+</html>
