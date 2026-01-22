@@ -1,5 +1,5 @@
 // Universal POS Service Worker - Full PWA Support
-const CACHE_NAME = 'universal-pos-v14';
+const CACHE_NAME = 'universal-pos-v20';
 const STATIC_CACHE = 'universal-pos-static-v14';
 const DYNAMIC_CACHE = 'universal-pos-dynamic-v14';
 
