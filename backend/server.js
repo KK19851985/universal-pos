@@ -4062,13 +4062,25 @@ app.get('/loyalty/customers/:id', async (req, res) => {
                    la.total_points_earned,
                    la.total_points_redeemed,
                    la.member_since,
+                   la.current_tier_id,
                    lp.id as program_id,
                    lp.name as program_name,
                    lp.points_per_dollar,
-                   lp.redemption_rate
+                   lp.redemption_rate,
+                   lt.name as tier_name,
+                   lt.multiplier as tier_multiplier,
+                   lt.benefits as tier_benefits,
+                   next_tier.name as next_tier_name,
+                   next_tier.minimum_points as next_tier_points
             FROM customers c
             LEFT JOIN loyalty_accounts la ON la.customer_id = c.id
             LEFT JOIN loyalty_programs lp ON lp.id = la.program_id
+            LEFT JOIN loyalty_tiers lt ON lt.id = la.current_tier_id
+            LEFT JOIN LATERAL (
+                SELECT name, minimum_points FROM loyalty_tiers 
+                WHERE program_id = lp.id AND minimum_points > COALESCE(la.total_points_earned, 0) AND is_active = true
+                ORDER BY minimum_points ASC LIMIT 1
+            ) next_tier ON true
             WHERE c.id = ?
         `, [customerId]);
         
@@ -4271,9 +4283,11 @@ app.get('/loyalty/lookup', async (req, res) => {
         
         const customers = await dbAsync.all(`
             SELECT c.id, c.first_name, c.last_name, c.phone, c.loyalty_number,
-                   la.current_points
+                   la.current_points, la.total_points_earned,
+                   lt.name as tier_name, lt.multiplier as tier_multiplier
             FROM customers c
             LEFT JOIN loyalty_accounts la ON la.customer_id = c.id
+            LEFT JOIN loyalty_tiers lt ON lt.id = la.current_tier_id
             WHERE c.is_active = true
               AND (c.phone ILIKE ? OR c.loyalty_number ILIKE ? OR c.email ILIKE ?
                    OR CONCAT(c.first_name, ' ', c.last_name) ILIKE ?)
@@ -4296,11 +4310,13 @@ app.post('/loyalty/earn', async (req, res) => {
         }
         
         const result = await runTransactionalAction(`loyalty.earn.${customerId}.${orderId || Date.now()}`, req, async () => {
-            // Get customer's loyalty account
+            // Get customer's loyalty account with current tier
             const account = await dbAsync.get(`
-                SELECT la.*, lp.points_per_dollar
+                SELECT la.*, lp.points_per_dollar, 
+                       lt.multiplier as tier_multiplier, lt.name as tier_name
                 FROM loyalty_accounts la
                 JOIN loyalty_programs lp ON lp.id = la.program_id
+                LEFT JOIN loyalty_tiers lt ON lt.id = la.current_tier_id
                 WHERE la.customer_id = ? AND la.is_active = true
                 FOR UPDATE
             `, [customerId]);
@@ -4309,12 +4325,16 @@ app.post('/loyalty/earn', async (req, res) => {
                 throw createHttpError(404, 'Loyalty account not found');
             }
             
-            // Calculate points to earn: 1 point per 10 baht spent
-            const pointsEarned = Math.floor(Number(amountSpent) / 10);
+            // Calculate points to earn: 1 point per 10 baht spent, multiplied by tier multiplier
+            const tierMultiplier = Number(account.tier_multiplier) || 1.0;
+            const basePoints = Math.floor(Number(amountSpent) / 10);
+            const pointsEarned = Math.floor(basePoints * tierMultiplier);
             
             if (pointsEarned <= 0) {
                 return { status: 200, body: { pointsEarned: 0, message: 'No points earned' } };
             }
+            
+            const newTotalPoints = (account.total_points_earned || 0) + pointsEarned;
             
             // Update account
             await dbAsync.run(`
@@ -4329,7 +4349,26 @@ app.post('/loyalty/earn', async (req, res) => {
             await dbAsync.run(`
                 INSERT INTO loyalty_transactions (account_id, transaction_type, points, order_id, description)
                 VALUES (?, 'earn', ?, ?, ?)
-            `, [account.id, pointsEarned, orderId || null, `Earned ${pointsEarned} points on purchase`]);
+            `, [account.id, pointsEarned, orderId || null, `Earned ${pointsEarned} points (${tierMultiplier}x multiplier)`]);
+            
+            // Check for tier upgrade
+            const newTier = await dbAsync.get(`
+                SELECT id, name, multiplier FROM loyalty_tiers 
+                WHERE program_id = ? AND minimum_points <= ? AND is_active = true
+                ORDER BY minimum_points DESC LIMIT 1
+            `, [account.program_id, newTotalPoints]);
+            
+            let tierUpgrade = null;
+            if (newTier && newTier.id !== account.current_tier_id) {
+                await dbAsync.run('UPDATE loyalty_accounts SET current_tier_id = ? WHERE id = ?', [newTier.id, account.id]);
+                tierUpgrade = { newTier: newTier.name, newMultiplier: newTier.multiplier };
+                
+                // Record tier upgrade transaction
+                await dbAsync.run(`
+                    INSERT INTO loyalty_transactions (account_id, transaction_type, points, description)
+                    VALUES (?, 'tier_upgrade', 0, ?)
+                `, [account.id, `Upgraded to ${newTier.name}!`]);
+            }
             
             // Update customer stats
             await dbAsync.run(`
@@ -4345,9 +4384,15 @@ app.post('/loyalty/earn', async (req, res) => {
             return { 
                 status: 200, 
                 body: { 
-                    pointsEarned, 
+                    pointsEarned,
+                    basePoints,
+                    multiplier: tierMultiplier,
+                    currentTier: account.tier_name || 'Nugget',
                     newBalance: updatedAccount.current_points,
-                    message: `Earned ${pointsEarned} points!` 
+                    tierUpgrade,
+                    message: tierUpgrade 
+                        ? `🎉 Earned ${pointsEarned} points and upgraded to ${tierUpgrade.newTier}!`
+                        : `Earned ${pointsEarned} points!` 
                 } 
             };
         });
@@ -4548,6 +4593,76 @@ app.post('/loyalty/adjust', async (req, res) => {
             return res.status(error.status).json({ error: error.message });
         }
         res.status(500).json({ error: 'Failed to adjust points', details: error.message });
+    }
+});
+
+// Get all loyalty tiers
+app.get('/loyalty/tiers', async (req, res) => {
+    try {
+        const tiers = await dbAsync.all(`
+            SELECT lt.*, lp.name as program_name,
+                   (SELECT COUNT(*) FROM loyalty_accounts la WHERE la.current_tier_id = lt.id) as member_count
+            FROM loyalty_tiers lt
+            JOIN loyalty_programs lp ON lp.id = lt.program_id
+            WHERE lt.is_active = true
+            ORDER BY lt.minimum_points ASC
+        `);
+        res.json(tiers);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch tiers', details: error.message });
+    }
+});
+
+// Update a tier
+app.put('/loyalty/tiers/:id', async (req, res) => {
+    try {
+        const tierId = Number(req.params.id);
+        const { name, description, minimum_points, multiplier, benefits } = req.body;
+        
+        const existing = await dbAsync.get('SELECT * FROM loyalty_tiers WHERE id = ?', [tierId]);
+        if (!existing) {
+            return res.status(404).json({ error: 'Tier not found' });
+        }
+        
+        await dbAsync.run(`
+            UPDATE loyalty_tiers 
+            SET name = COALESCE(?, name),
+                description = COALESCE(?, description),
+                minimum_points = COALESCE(?, minimum_points),
+                multiplier = COALESCE(?, multiplier),
+                benefits = COALESCE(?::jsonb, benefits)
+            WHERE id = ?
+        `, [name, description, minimum_points, multiplier, benefits ? JSON.stringify(benefits) : null, tierId]);
+        
+        const updated = await dbAsync.get('SELECT * FROM loyalty_tiers WHERE id = ?', [tierId]);
+        res.json(updated);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update tier', details: error.message });
+    }
+});
+
+// Recalculate all customer tiers (admin function)
+app.post('/loyalty/tiers/recalculate', async (req, res) => {
+    try {
+        const result = await dbAsync.run(`
+            UPDATE loyalty_accounts la
+            SET current_tier_id = (
+                SELECT lt.id 
+                FROM loyalty_tiers lt 
+                WHERE lt.program_id = la.program_id 
+                  AND lt.minimum_points <= la.total_points_earned
+                  AND lt.is_active = true
+                ORDER BY lt.minimum_points DESC 
+                LIMIT 1
+            )
+        `);
+        
+        res.json({ 
+            message: 'Tiers recalculated successfully',
+            accountsUpdated: result.changes
+        });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to recalculate tiers', details: error.message });
     }
 });
 
