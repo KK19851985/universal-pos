@@ -20,54 +20,54 @@ WHERE NOT EXISTS (SELECT 1 FROM loyalty_programs WHERE organization_id = 1 AND i
 INSERT INTO loyalty_tiers (program_id, name, description, minimum_points, multiplier, benefits, is_active)
 SELECT 
     lp.id,
-    '🍗 Nugget',
-    'Welcome to the flock! Start earning crispy rewards.',
+    '🥚 Fresh Egg',
+    'Just hatched! Welcome to the coop.',
     0,
     1.00,
     '{"discount_percent": 0, "birthday_bonus": false, "priority_seating": false, "free_upgrades": false, "vip_treatment": false}'::jsonb,
     true
 FROM loyalty_programs lp 
 WHERE lp.organization_id = 1 AND lp.is_active = true
-AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Nugget%');
+AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Egg%');
 
 INSERT INTO loyalty_tiers (program_id, name, description, minimum_points, multiplier, benefits, is_active)
 SELECT 
     lp.id,
-    '🍗 Wing',
-    'Spreading your wings! Enjoy bonus rewards.',
+    '🐣 Fluffy Chick',
+    'Growing feathers! You''re getting the hang of this.',
     500,
     1.25,
     '{"discount_percent": 5, "birthday_bonus": true, "priority_seating": false, "free_upgrades": false, "vip_treatment": false}'::jsonb,
     true
 FROM loyalty_programs lp 
 WHERE lp.organization_id = 1 AND lp.is_active = true
-AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Wing%');
+AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Chick%');
 
 INSERT INTO loyalty_tiers (program_id, name, description, minimum_points, multiplier, benefits, is_active)
 SELECT 
     lp.id,
-    '🍗 Drumstick',
-    'A loyal drumstick! Premium perks unlocked.',
+    '🐔 Cluck Master',
+    'Running the coop! Respect earned.',
     2000,
     1.50,
     '{"discount_percent": 10, "birthday_bonus": true, "priority_seating": true, "free_upgrades": true, "vip_treatment": false}'::jsonb,
     true
 FROM loyalty_programs lp 
 WHERE lp.organization_id = 1 AND lp.is_active = true
-AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Drumstick%');
+AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Cluck%');
 
 INSERT INTO loyalty_tiers (program_id, name, description, minimum_points, multiplier, benefits, is_active)
 SELECT 
     lp.id,
-    '🍗 Golden Crispy',
-    'The crispiest of them all! Ultimate VIP status.',
+    '🐓 Legendary Rooster',
+    'COCK-A-DOODLE-VIP! You rule the barnyard.',
     5000,
     2.00,
     '{"discount_percent": 15, "birthday_bonus": true, "priority_seating": true, "free_upgrades": true, "vip_treatment": true, "special_offers": true}'::jsonb,
     true
 FROM loyalty_programs lp 
 WHERE lp.organization_id = 1 AND lp.is_active = true
-AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Golden Crispy%');
+AND NOT EXISTS (SELECT 1 FROM loyalty_tiers lt WHERE lt.program_id = lp.id AND lt.name LIKE '%Rooster%');
 
 -- Create index for faster tier lookups
 CREATE INDEX IF NOT EXISTS idx_loyalty_accounts_tier ON loyalty_accounts(current_tier_id);
