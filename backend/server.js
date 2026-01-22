@@ -13,6 +13,13 @@ const app = express();
 const port = process.env.POS_PORT || 5000;
 const serverStartTime = new Date().toISOString();  // Captured once at startup
 
+// JWT Secret - use environment variable or generate a secure random key
+// IMPORTANT: In production, always set JWT_SECRET environment variable!
+const JWT_SECRET = process.env.JWT_SECRET || crypto.randomBytes(32).toString('hex');
+if (!process.env.JWT_SECRET) {
+    console.warn('⚠️  WARNING: JWT_SECRET not set in environment. Using random key (sessions will invalidate on restart).');
+}
+
 // Middleware
 app.use(helmet({
     contentSecurityPolicy: {
@@ -292,11 +299,11 @@ function centsToDollars(cents) {
 /**
  * Calculate tax in cents using integer math.
  * @param {number} subtotalCents - Subtotal in cents
- * @param {number} taxRateBps - Tax rate in basis points (1000 = 10%)
+ * @param {number} taxRateBps - Tax rate in basis points (0 = 0%, 1000 = 10%)
  * @returns {number} Tax amount in cents
  */
-function calculateTaxCents(subtotalCents, taxRateBps = 1000) {
-    // 1000 basis points = 10%
+function calculateTaxCents(subtotalCents, taxRateBps = 0) {
+    // 0 = no tax (default), 1000 basis points = 10%
     // (subtotal * rate) / 10000 gives us the tax in cents
     return Math.round((subtotalCents * taxRateBps) / 10000);
 }
@@ -728,7 +735,7 @@ app.post('/auth/login', async (req, res) => {
         // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, username: user.username, role: user.role },
-            'your-secret-key', // TODO: use env variable
+            JWT_SECRET,
             { expiresIn: '8h' }
         );
 
@@ -764,7 +771,7 @@ app.post('/auth/validate', async (req, res) => {
         }
         
         try {
-            const decoded = jwt.verify(token, 'your-secret-key');
+            const decoded = jwt.verify(token, JWT_SECRET);
             // Verify user still exists
             const user = await dbAsync.get('SELECT id, username, full_name, role FROM users WHERE id = ?', [decoded.userId]);
             if (user) {
