@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS users (
     email TEXT,
     full_name TEXT,
     role TEXT NOT NULL DEFAULT 'staff',
+    permissions TEXT DEFAULT '{}',
     is_active INTEGER DEFAULT 1,
     last_login TEXT,
     created_at TEXT DEFAULT (datetime('now')),
@@ -223,6 +224,15 @@ CREATE TABLE IF NOT EXISTS order_items (
     completed_at TEXT,
     served_at TEXT,
     special_instructions TEXT,
+    voided_at TEXT,
+    voided_by INTEGER REFERENCES users(id),
+    void_reason_id INTEGER,
+    void_reason_text TEXT,
+    is_comped INTEGER DEFAULT 0,
+    comped_at TEXT,
+    comped_by INTEGER REFERENCES users(id),
+    comp_reason TEXT,
+    comp_approved_by INTEGER REFERENCES users(id),
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -673,6 +683,47 @@ CREATE INDEX IF NOT EXISTS idx_loyalty_accounts_customer ON loyalty_accounts(cus
 CREATE INDEX IF NOT EXISTS idx_loyalty_transactions_account ON loyalty_transactions(account_id);
 CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created ON idempotency_keys(created_at);
 
+-- ==================== ORDER OPERATIONS ====================
+
+-- Void Reasons
+CREATE TABLE IF NOT EXISTS void_reasons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    description TEXT NOT NULL,
+    requires_manager INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Discount Types
+CREATE TABLE IF NOT EXISTS discount_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT UNIQUE NOT NULL,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    value REAL NOT NULL,
+    max_value_cents INTEGER,
+    requires_manager INTEGER DEFAULT 0,
+    is_active INTEGER DEFAULT 1,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+-- Discount Applications
+CREATE TABLE IF NOT EXISTS discount_applications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id INTEGER NOT NULL REFERENCES orders(id),
+    order_item_id INTEGER REFERENCES order_items(id),
+    discount_type_id INTEGER REFERENCES discount_types(id),
+    discount_type TEXT NOT NULL,
+    discount_value REAL NOT NULL,
+    discount_amount_cents INTEGER NOT NULL,
+    original_amount_cents INTEGER NOT NULL,
+    reason TEXT,
+    applied_by INTEGER NOT NULL REFERENCES users(id),
+    approved_by INTEGER REFERENCES users(id),
+    applied_at TEXT DEFAULT (datetime('now'))
+);
+
 -- ==================== DEFAULT DATA ====================
 
 -- Insert default organization and location
@@ -682,10 +733,34 @@ INSERT OR IGNORE INTO locations (id, organization_id, name, code) VALUES (1, 1, 
 -- Insert default floor plan
 INSERT OR IGNORE INTO floor_plans (id, location_id, name) VALUES (1, 1, 'Main Floor');
 
--- Insert default admin user (password: admin123)
-INSERT OR IGNORE INTO users (id, organization_id, username, password_hash, full_name, role, is_active) 
-VALUES (1, 1, 'admin', '$2b$10$rFzSEjF8QHD.9JYT.9I3Eu6T.fxjWB3QkTd1r6C8jY3pYxJKhVD.W', 'Administrator', 'admin', 1);
+-- Insert default admin user (password: admin123) with full permissions
+INSERT OR IGNORE INTO users (id, organization_id, username, password_hash, full_name, role, permissions, is_active) 
+VALUES (1, 1, 'admin', '$2b$10$UFN45BqkuMNkSX1E1QcLsedjk3Z0ITE8IyRdDazeGNguwv3/yTjMq', 'Administrator', 'admin', 
+'{"void_item":true,"discount_item":true,"comp_item":true,"order_discount":true,"manager_override":true,"view_reports":true,"manage_users":true}', 1);
 
 -- Insert default loyalty program
 INSERT OR IGNORE INTO loyalty_programs (id, organization_id, name, points_per_dollar, redemption_rate, minimum_redemption, is_active)
 VALUES (1, 1, 'Default Loyalty Program', 1.0, 0.01, 100, 1);
+
+-- Insert void reasons
+INSERT OR IGNORE INTO void_reasons (code, description, requires_manager) VALUES
+    ('customer_request', 'Customer requested removal', 0),
+    ('wrong_item', 'Wrong item ordered', 0),
+    ('quality_issue', 'Quality/preparation issue', 0),
+    ('duplicate', 'Duplicate entry', 0),
+    ('out_of_stock', 'Item out of stock', 0),
+    ('allergy', 'Allergy/dietary concern', 0),
+    ('pricing_error', 'Pricing error correction', 1),
+    ('manager_comp', 'Manager comp/courtesy', 1),
+    ('other', 'Other (specify)', 0);
+
+-- Insert discount types
+INSERT OR IGNORE INTO discount_types (code, name, type, value, requires_manager) VALUES
+    ('happy_hour', 'Happy Hour 10%', 'percentage', 10.00, 0),
+    ('senior', 'Senior Discount 15%', 'percentage', 15.00, 0),
+    ('employee', 'Employee Discount 20%', 'percentage', 20.00, 0),
+    ('loyalty', 'Loyalty Member 5%', 'percentage', 5.00, 0),
+    ('comp_5', 'Comp $5', 'fixed_amount', 5.00, 0),
+    ('comp_10', 'Comp $10', 'fixed_amount', 10.00, 1),
+    ('manager_50', 'Manager 50% Off', 'percentage', 50.00, 1),
+    ('full_comp', 'Full Comp 100%', 'percentage', 100.00, 1);

@@ -1,0 +1,14 @@
+✅ Connected to SQLite database: c:\Users\danie\Desktop\universalPOS\universal-pos\backend\data\pos.db
+--- SERVER STARTUP INFO ---
+Server file: c:\Users\danie\Desktop\universalPOS\universal-pos\backend\server.js
+Listening port: 5001
+Database: SQLite (data/pos.db)
+---------------------------
+Starting SQLite database migrations...
+Found 1 migration files
+  → Running 001_initial_schema...
+  ✓ 001_initial_schema completed
+All migrations completed successfully!
+Database connection successful
+Universal POS server running on port 5001
+Access the UI at: http://localhost:5001

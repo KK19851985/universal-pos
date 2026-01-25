@@ -155,16 +155,14 @@ async function healthCheck() {
 
 // Graceful shutdown
 function closeDatabase() {
-    if (db) {
+    if (db && db.open) {
         db.close();
         console.log('SQLite database closed');
     }
 }
 
-// Handle process exit
+// Handle process exit only - let server.js handle SIGINT/SIGTERM
 process.on('exit', closeDatabase);
-process.on('SIGINT', () => { closeDatabase(); process.exit(0); });
-process.on('SIGTERM', () => { closeDatabase(); process.exit(0); });
 
 module.exports = { 
     db,

@@ -1,0 +1,3 @@
+⚠️  WARNING: JWT_SECRET not set in environment. Using random key (sessions will invalidate on restart).
+SQL Error: no such table: schema_migrations 
+SQL: SELECT id FROM schema_migrations WHERE name = ?
