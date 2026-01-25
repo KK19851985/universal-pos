@@ -6,8 +6,10 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
-const { dbAsync, getConnectionStatus, healthCheck: dbHealthCheck } = require('./db');
-const { runMigrations } = require('./runMigrations');
+
+// Use SQLite instead of PostgreSQL - no external database needed!
+const { dbAsync, getConnectionStatus, healthCheck: dbHealthCheck } = require('./db-sqlite');
+const { runMigrations } = require('./runMigrations-sqlite');
 const { printReceipt, printKitchenTicket, printDailyReport, printRawText, getPrinterStatus } = require('./printer');
 
 const app = express();
@@ -4981,9 +4983,7 @@ async function startServer() {
         console.log('--- SERVER STARTUP INFO ---');
         console.log('Server file:', __filename);
         console.log('Listening port:', port);
-        console.log('DB host:', process.env.PG_HOST || 'localhost');
-        console.log('DB port:', process.env.PG_PORT || 5433);
-        console.log('DB name:', process.env.PG_DATABASE || 'universal_pos');
+        console.log('Database: SQLite (data/pos.db)');
         console.log('---------------------------');
         
         await runMigrations();
