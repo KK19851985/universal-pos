@@ -36,6 +36,18 @@ copy "%SOURCE_DIR%CUSTOMER_README.md" "%PACKAGE_DIR%\README.txt" >nul
 echo   [+] restart-server.bat
 copy "%SOURCE_DIR%restart-server.bat" "%PACKAGE_DIR%\" >nul
 
+echo   [+] ANDROID_SETUP.md
+copy "%SOURCE_DIR%ANDROID_SETUP.md" "%PACKAGE_DIR%\ANDROID_SETUP.txt" >nul
+
+echo   [+] ENABLE_NETWORK.bat
+copy "%SOURCE_DIR%ENABLE_NETWORK.bat" "%PACKAGE_DIR%\" >nul
+
+:: Windows Desktop App (if built)
+if exist "%SOURCE_DIR%app-builder\dist\UniversalPOS-Portable.exe" (
+    echo   [+] UniversalPOS-Portable.exe
+    copy "%SOURCE_DIR%app-builder\dist\UniversalPOS-Portable.exe" "%PACKAGE_DIR%\" >nul
+)
+
 :: Backend folder
 echo   [+] backend\
 mkdir "%PACKAGE_DIR%\backend"
@@ -108,14 +120,17 @@ echo  ════════════════════════�
 echo.
 echo  PACKAGE CONTENTS:
 echo.
-echo    INSTALL.bat        - Customer runs this FIRST (as admin)
-echo    README.txt         - Simple instructions
-echo    restart-server.bat - Use after code updates
-echo    UNINSTALL.bat      - Remove POS completely
+echo    INSTALL.bat               - Customer runs this FIRST (as admin)
+echo    README.txt                - Simple instructions
+echo    ANDROID_SETUP.txt         - How to use on Android tablets/phones
+echo    ENABLE_NETWORK.bat        - Allow connections from other devices
+echo    UniversalPOS-Portable.exe - Windows desktop app (if built)
+echo    restart-server.bat        - Use after code updates
+echo    UNINSTALL.bat             - Remove POS completely
 echo.
-echo    backend\           - Server code + database migrations
-echo    public\            - Web frontend (HTML/CSS/JS)
-echo    startup\           - Auto-start on Windows boot
+echo    backend\                  - Server code + database migrations
+echo    public\                   - Web frontend (HTML/CSS/JS)
+echo    startup\                  - Auto-start on Windows boot
 echo.
 echo  ══════════════════════════════════════════════════════════════
 echo.

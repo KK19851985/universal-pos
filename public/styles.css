@@ -922,6 +922,48 @@ header {
     margin-top: 0.25rem;
 }
 
+/* Drag and Drop Styles for Product Grid */
+.product-card.draggable {
+    cursor: grab;
+}
+
+.product-card.dragging {
+    opacity: 0.5;
+    cursor: grabbing;
+    transform: scale(1.05);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3);
+    z-index: 1000;
+}
+
+.product-card.drag-over {
+    border: 2px dashed #3498db;
+    background-color: rgba(52, 152, 219, 0.1);
+}
+
+.product-grid.drag-mode .product-card {
+    cursor: grab;
+}
+
+.product-grid.drag-mode .product-card:active {
+    cursor: grabbing;
+}
+
+/* Drag handle indicator in edit mode */
+.edit-mode .product-card::before {
+    content: '⋮⋮';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5rem;
+    color: rgba(0,0,0,0.1);
+    pointer-events: none;
+}
+
+.edit-mode .product-card:hover::before {
+    color: rgba(0,0,0,0.3);
+}
+
 /* Menu Management Controls */
 .menu-controls {
     display: flex;
@@ -1117,6 +1159,17 @@ header {
 
 .action-btn.kitchen:hover {
     background: linear-gradient(135deg, #f7931e 0%, #ff6b35 100%);
+}
+
+#print-bill-btn {
+    background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+    color: white;
+    min-width: 50px;
+    padding: 0.5rem;
+}
+
+#print-bill-btn:hover {
+    background: linear-gradient(135deg, #495057 0%, #6c757d 100%);
 }
 
 .action-btn:hover {
@@ -1355,28 +1408,7 @@ header {
     cursor: pointer;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .main-content {
-        flex-direction: column;
-    }
-
-    .catalog-section, .order-section {
-        margin: 0.5rem;
-        flex: none;
-        height: 50vh;
-    }
-
-    header {
-        flex-direction: column;
-        gap: 1rem;
-        align-items: stretch;
-    }
-
-    .order-info {
-        justify-content: space-between;
-    }
-}
+/* Desktop layout forced on all devices - no responsive changes */
 
 /* Table Status Colors */
 .table-card.status-available {
@@ -1470,6 +1502,24 @@ header {
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
     border-bottom: 1px dashed #ccc;
+}
+
+.bill-customer {
+    background-color: #e8f5e9;
+    border: 1px solid #4CAF50;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin-bottom: 1rem;
+    text-align: center;
+}
+
+.bill-customer p {
+    margin: 0.25rem 0;
+}
+
+.bill-customer p:first-child {
+    font-size: 1.1rem;
+    color: #2e7d32;
 }
 
 .bill-items {
@@ -3557,3 +3607,10 @@ header {
     display: flex;
     justify-content: center;
 }
+
+/* ============================================
+   DESKTOP LAYOUT ON ALL DEVICES
+   Forces the exact PC layout on phones/tablets
+   ============================================ */
+
+/* Remove all responsive breakpoints - show PC layout everywhere */

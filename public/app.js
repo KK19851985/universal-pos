@@ -611,6 +611,14 @@ class POSApp {
             this.clearOrder();
         });
 
+        document.getElementById('print-bill-btn').addEventListener('click', () => {
+            if (this.activeOrderId) {
+                this.printReceiptToThermal(this.activeOrderId);
+            } else {
+                this.toast('No order to print. Send items to kitchen first.', 'error');
+            }
+        });
+
         document.getElementById('send-kitchen-btn').addEventListener('click', () => {
             this.sendToKitchen();
         });
@@ -877,7 +885,7 @@ class POSApp {
                     <p>Loading report data...</p>
                 </div>
                 <div class="report-actions">
-                    <button id="report-print-btn">🖨️ Print</button>
+                    <button id="report-print-btn">🖨️ Print to Thermal</button>
                     <button id="report-close-btn">Close</button>
                 </div>
             </div>
@@ -885,7 +893,9 @@ class POSApp {
         document.body.appendChild(modal);
         
         // Add event listeners for buttons
-        modal.querySelector('#report-print-btn').addEventListener('click', () => window.print());
+        modal.querySelector('#report-print-btn').addEventListener('click', async () => {
+            await this.printDailyReportToThermal(startTime, endTime);
+        });
         modal.querySelector('#report-close-btn').addEventListener('click', () => modal.remove());
         
         // Fetch report data from backend
@@ -964,6 +974,129 @@ class POSApp {
                 reportContent.innerHTML = `<p class="error">Failed to load report: ${error.message}</p>`;
             }
         }
+    }
+    
+    // Print daily report to thermal printer
+    async printDailyReportToThermal(startTime, endTime) {
+        try {
+            this.toast('Printing report...', 'info');
+            
+            const response = await fetch(`${this.apiBase}/api/print/daily-report`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    startTime: startTime.toISOString(),
+                    endTime: endTime.toISOString(),
+                    businessName: 'Rio Chicken',
+                    currency: this.currency
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.toast('Daily report printed! ✅', 'success');
+            } else {
+                throw new Error(result.error || 'Print failed');
+            }
+        } catch (error) {
+            console.error('Thermal print error:', error);
+            this.toast('Print failed: ' + error.message, 'error');
+        }
+    }
+    
+    // Print receipt for an order
+    async printReceiptToThermal(orderId) {
+        try {
+            this.toast('Printing receipt...', 'info');
+            
+            const response = await fetch(`${this.apiBase}/api/print/receipt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    orderId: orderId,
+                    businessName: 'UNIVERSAL POS'
+                })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                this.toast('Receipt printed! 🧾', 'success');
+            } else {
+                throw new Error(result.error || 'Print failed');
+            }
+        } catch (error) {
+            console.error('Thermal print error:', error);
+            this.toast('Print failed: ' + error.message, 'error');
+        }
+    }
+    
+    // Print current bill (for the order in progress)
+    async printCurrentBill() {
+        if (!this.activeOrderId || !this.currentOrder) {
+            this.toast('No order to print. Send items to kitchen first.', 'error');
+            return;
+        }
+        
+        // Build printable receipt HTML
+        const items = this.currentOrder.items.filter(i => !i.voided);
+        const subtotal = items.reduce((sum, i) => sum + (i.totalPrice || 0), 0);
+        const tax = 0; // No tax for now
+        const total = subtotal + tax;
+        
+        let itemsHtml = items.map(item => `
+            <tr>
+                <td>${item.quantity}x ${item.name}</td>
+                <td style="text-align:right">${this.currency}${(item.totalPrice || 0).toFixed(2)}</td>
+            </tr>
+        `).join('');
+        
+        const receiptHtml = `
+            <html>
+            <head>
+                <title>Receipt - Order #${this.activeOrderId}</title>
+                <style>
+                    body { font-family: monospace; font-size: 12px; width: 80mm; margin: 0 auto; padding: 10px; }
+                    h1 { text-align: center; font-size: 16px; margin: 5px 0; }
+                    h2 { text-align: center; font-size: 14px; margin: 5px 0; }
+                    hr { border: 1px dashed #000; }
+                    table { width: 100%; border-collapse: collapse; }
+                    td { padding: 2px 0; }
+                    .total { font-weight: bold; font-size: 14px; }
+                    .center { text-align: center; }
+                    .footer { margin-top: 20px; text-align: center; font-size: 10px; }
+                </style>
+            </head>
+            <body>
+                <h1>UNIVERSAL POS</h1>
+                <hr>
+                <h2>RECEIPT</h2>
+                <hr>
+                <p>Order #: ${this.activeOrderId}</p>
+                <p>Table: ${this.activeTableName || 'Walk-in'}</p>
+                <p>Date: ${new Date().toLocaleString()}</p>
+                <hr>
+                <table>${itemsHtml}</table>
+                <hr>
+                <table>
+                    <tr><td>Subtotal:</td><td style="text-align:right">${this.currency}${subtotal.toFixed(2)}</td></tr>
+                    <tr><td>Tax:</td><td style="text-align:right">${this.currency}${tax.toFixed(2)}</td></tr>
+                    <tr class="total"><td>TOTAL:</td><td style="text-align:right">${this.currency}${total.toFixed(2)}</td></tr>
+                </table>
+                <hr>
+                <p class="footer">Thank you for your visit!</p>
+            </body>
+            </html>
+        `;
+        
+        // Open print dialog
+        const printWindow = window.open('', '_blank', 'width=400,height=600');
+        printWindow.document.write(receiptHtml);
+        printWindow.document.close();
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
     }
     
     updateDayStatusUI() {
@@ -1558,10 +1691,16 @@ class POSApp {
         this.isGeneratingBill = true;
 
         try {
+            // Include customerId if a loyalty customer is linked to the order
+            const payload = { userId: this.currentUser.username };
+            if (this.orderCustomer) {
+                payload.customerId = this.orderCustomer.id;
+            }
+
             const response = await fetch(`/orders/${table.order_id}/bill`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId: this.currentUser.username }),
+                body: JSON.stringify(payload),
             });
 
             if (!response.ok) {
@@ -1615,11 +1754,24 @@ class POSApp {
 
         this.currentBill = bill;
         const content = modal.querySelector('#bill-content');
+        
+        // Build customer info section if loyalty customer is linked
+        let customerSection = '';
+        if (bill.loyaltyCustomer) {
+            customerSection = `
+                <div class="bill-customer">
+                    <p>👤 <strong>${bill.loyaltyCustomer.name}</strong></p>
+                    <p>⭐ ${bill.loyaltyCustomer.points} points</p>
+                </div>
+            `;
+        }
+        
         content.innerHTML = `
             <div class="bill-header">
                 <p><strong>Order #${bill.orderNumber}</strong></p>
                 <p>${new Date().toLocaleString()}</p>
             </div>
+            ${customerSection}
             <div class="bill-items">
                 ${bill.items.map(item => `
                     <div class="bill-item">
@@ -4229,6 +4381,10 @@ class POSApp {
                 sendBtn.textContent = 'Send to Kitchen';
             }
             
+            // AUTO-PRINT: Print bill after sending to kitchen to thermal printer
+            // Note: Backend already auto-prints, so this is disabled to avoid double printing
+            // this.printReceiptToThermal(this.activeOrderId);
+            
             // Redirect to Kitchen tab
             this.showRestaurantScreen();
             this.setRestaurantTab('kitchen');
@@ -4403,10 +4559,16 @@ class POSApp {
             const orderData = await orderCheck.json();
             
             if (orderData.status !== 'billed' && orderData.status !== 'paid') {
+                // Include customerId if a loyalty customer is linked
+                const billPayload = { userId: this.currentUser.username };
+                if (this.orderCustomer) {
+                    billPayload.customerId = this.orderCustomer.id;
+                }
+                
                 const billResponse = await fetch(`/orders/${this.currentOrder.id}/bill`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ userId: this.currentUser.username }),
+                    body: JSON.stringify(billPayload),
                 });
                 
                 if (!billResponse.ok) {

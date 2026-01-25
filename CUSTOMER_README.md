@@ -3,7 +3,7 @@
 ## Quick Start (For Customers)
 
 ### What You Need First
-1. **Windows 10 or 11** (64-bit)
+1. **Windows 10 or 11** (64-bit) - This is your POS server
 2. **Node.js** - Download from https://nodejs.org (choose LTS version)
 3. **PostgreSQL** - Download from https://www.postgresql.org/download/windows/
    - During PostgreSQL installation, remember the password you set!
@@ -27,6 +27,21 @@
 
 ---
 
+## 📱 Using on Android Tablets/Phones
+
+UniversalPOS works on **any Android device** as an installable app!
+
+### Quick Setup:
+1. Connect your Android device to the **same WiFi** as the Windows computer
+2. Open **Google Chrome** on Android
+3. Go to: `http://[COMPUTER-IP]:5000` (find IP using `ipconfig` on Windows)
+4. Tap **Chrome menu (⋮)** → **"Add to Home Screen"**
+5. Tap the new **UniversalPOS** icon - it works like a native app!
+
+📖 **See `ANDROID_SETUP.md` for detailed instructions**
+
+---
+
 ## What Happens Automatically
 
 After installation, every time you turn on your computer:
@@ -39,11 +54,36 @@ You don't need to do anything - just turn on the computer and log in!
 
 ---
 
+## 🖥️ Windows Desktop App
+
+If included, you can also use `UniversalPOS-Portable.exe`:
+- Double-click to run (no installation needed)
+- Opens in its own window (not in browser)
+- Requires server to be running first
+
+---
+
+## Multiple Devices
+
+You can use UniversalPOS on multiple devices at once:
+- **Windows computer** - Main server + POS terminal
+- **Android tablets** - Additional POS terminals, kitchen display
+- **Android phones** - Manager access, order taking
+
+All devices see the same real-time data!
+
+---
+
 ## Troubleshooting
 
 ### POS doesn't open after login
 - Check if the server is running: Open browser and go to `http://localhost:5000`
 - If not working, right-click `restart-server.bat` → Run as administrator
+
+### Android device can't connect
+- Make sure both devices are on the same WiFi network
+- Check Windows Firewall allows port 5000
+- Verify the IP address is correct
 
 ### Forgot admin password
 - Contact support to reset your password
@@ -57,3 +97,4 @@ You don't need to do anything - just turn on the computer and log in!
 ## Support
 
 For technical support, contact: [Your contact info here]
+

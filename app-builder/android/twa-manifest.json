@@ -1,0 +1,34 @@
+{
+  "host": "localhost:5000",
+  "name": "UniversalPOS",
+  "short_name": "POS",
+  "theme_color": "#667eea",
+  "background_color": "#1e3c72",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "packageId": "com.universalpos.app",
+  "appVersion": "1.0.0",
+  "appVersionCode": 1,
+  "signingMode": "new",
+  "isChromeOSOnly": false,
+  "includeSourceCode": false,
+  "playBilling": false,
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "features": {
+    "locationDelegation": {
+      "enabled": false
+    },
+    "playBilling": {
+      "enabled": false
+    }
+  },
+  "enableNotifications": false,
+  "enableSiteSettingsShortcut": false,
+  "fallbackType": "webview",
+  "splashScreenFadeOutDuration": 300,
+  "iconUrl": "icons/icon-512.png",
+  "maskableIconUrl": "icons/icon-512.png"
+}

@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniversalPOS - Connection Error</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            max-width: 500px;
+        }
+        .icon {
+            font-size: 80px;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            margin-bottom: 1rem;
+            line-height: 1.6;
+        }
+        .steps {
+            text-align: left;
+            background: rgba(255,255,255,0.1);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin: 1.5rem 0;
+        }
+        .steps li {
+            margin: 0.5rem 0;
+            padding-left: 0.5rem;
+        }
+        button {
+            background: white;
+            color: #1e3c72;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 1rem;
+        }
+        button:hover {
+            background: #f0f0f0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">⚠️</div>
+        <h1>Cannot Connect to POS Server</h1>
+        <p>The UniversalPOS server is not responding at <strong>http://localhost:5000</strong></p>
+        
+        <div class="steps">
+            <p><strong>Please check:</strong></p>
+            <ol>
+                <li>Is the POS server running?</li>
+                <li>Check if PostgreSQL service is started</li>
+                <li>Try running <code>restart-server.bat</code> as admin</li>
+                <li>Make sure port 5000 is not blocked</li>
+            </ol>
+        </div>
+        
+        <button onclick="location.reload()">🔄 Try Again</button>
+    </div>
+</body>
+</html>

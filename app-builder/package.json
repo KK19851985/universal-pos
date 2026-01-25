@@ -1,0 +1,46 @@
+{
+  "name": "universalpos-app-builder",
+  "version": "1.0.0",
+  "description": "Build Android APK and Windows EXE for UniversalPOS",
+  "author": "UniversalPOS",
+  "private": true,
+  "scripts": {
+    "build:android": "node build-android.js",
+    "build:windows": "electron-builder --win portable",
+    "build:all": "npm run build:android && npm run build:windows",
+    "start:electron": "electron .",
+    "package:windows": "electron-builder --win --dir"
+  },
+  "main": "electron-main.js",
+  "build": {
+    "appId": "com.universalpos.app",
+    "productName": "UniversalPOS",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "../public/icons/icon-256.png",
+      "signAndEditExecutable": false,
+      "sign": null
+    },
+    "portable": {
+      "artifactName": "UniversalPOS-Portable.exe"
+    },
+    "files": [
+      "electron-main.js",
+      "preload.js",
+      "error.html"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {}
+}

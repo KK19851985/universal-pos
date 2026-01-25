@@ -1,7 +1,7 @@
 // Universal POS Service Worker - Full PWA Support
-const CACHE_NAME = 'universal-pos-v20';
-const STATIC_CACHE = 'universal-pos-static-v14';
-const DYNAMIC_CACHE = 'universal-pos-dynamic-v14';
+const CACHE_NAME = 'universal-pos-v21';
+const STATIC_CACHE = 'universal-pos-static-v15';
+const DYNAMIC_CACHE = 'universal-pos-dynamic-v15';
 
 // Assets to cache immediately on install
 const STATIC_ASSETS = [

@@ -8,6 +8,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { dbAsync, getConnectionStatus, healthCheck: dbHealthCheck } = require('./db');
 const { runMigrations } = require('./runMigrations');
+const { printReceipt, printKitchenTicket, printDailyReport, printRawText, getPrinterStatus } = require('./printer');
 
 const app = express();
 const port = process.env.POS_PORT || 5000;
@@ -903,9 +904,9 @@ app.put('/restaurant/tables/:id', async (req, res) => {
         const { name, capacity, shape } = req.body;
 
         const result = await runTransactionalAction(`tables.update.${tableId}`, req, async () => {
-            // Lock the table and check status
+            // Lock the table first, then get status
             const table = await dbAsync.get(
-                'SELECT t.*, ts.status FROM tables t LEFT JOIN table_statuses ts ON t.id = ts.table_id AND ts.ended_at IS NULL WHERE t.id = ? FOR UPDATE',
+                'SELECT * FROM tables WHERE id = ? FOR UPDATE',
                 [tableId]
             );
 
@@ -913,9 +914,16 @@ app.put('/restaurant/tables/:id', async (req, res) => {
                 throw { status: 404, message: 'Table not found' };
             }
 
+            // Get current status separately
+            const tableStatus = await dbAsync.get(
+                'SELECT status FROM table_statuses WHERE table_id = ? AND ended_at IS NULL',
+                [tableId]
+            );
+            const currentStatus = tableStatus?.status || 'available';
+
             // Only allow editing if table is available or blocked
-            if (!['available', 'blocked'].includes(table.status)) {
-                throw { status: 409, message: `Cannot edit table while status is "${table.status}"` };
+            if (!['available', 'blocked'].includes(currentStatus)) {
+                throw { status: 409, message: `Cannot edit table while status is "${currentStatus}"` };
             }
 
             const oldValues = { name: table.name, capacity: table.capacity, shape: table.shape };
@@ -961,19 +969,26 @@ app.delete('/restaurant/tables/:id', async (req, res) => {
         const tableId = Number(req.params.id);
 
         const result = await runTransactionalAction(`tables.delete.${tableId}`, req, async () => {
-            // Lock the table and check status
+            // Lock the table first
             const table = await dbAsync.get(
-                'SELECT t.*, ts.status FROM tables t LEFT JOIN table_statuses ts ON t.id = ts.table_id AND ts.ended_at IS NULL WHERE t.id = ? FOR UPDATE',
+                'SELECT * FROM tables WHERE id = ? FOR UPDATE',
                 [tableId]
             );
 
             if (!table) {
                 throw { status: 404, message: 'Table not found' };
             }
+            
+            // Get current status separately
+            const statusRow = await dbAsync.get(
+                'SELECT status FROM table_statuses WHERE table_id = ? AND ended_at IS NULL',
+                [tableId]
+            );
+            const status = statusRow?.status || 'available';
 
             // Only allow deleting if table is available or blocked
-            if (!['available', 'blocked'].includes(table.status)) {
-                throw { status: 409, message: `Cannot delete table while status is "${table.status}"` };
+            if (!['available', 'blocked'].includes(status)) {
+                throw { status: 409, message: `Cannot delete table while status is "${status}"` };
             }
 
             // Soft delete - mark as inactive
@@ -2039,6 +2054,62 @@ app.post('/restaurant/kitchen/send', async (req, res) => {
                 metadata: getRequestMetadata(req),
             });
             
+            // AUTO-PRINT: Print bill to thermal printer after sending to kitchen
+            try {
+                // Get all items for the order (including previously sent items)
+                const allItems = await dbAsync.all(
+                    `SELECT oi.*, p.name
+                     FROM order_items oi
+                     JOIN products p ON p.id = oi.product_id
+                     WHERE oi.order_id = ? AND oi.voided_at IS NULL`,
+                    [orderIdToUse]
+                );
+                
+                // Get table name
+                const tableInfo = tableId ? await dbAsync.get('SELECT name FROM tables WHERE id = ?', [tableId]) : null;
+                
+                // Get server name
+                const serverInfo = userDbId ? await dbAsync.get('SELECT username FROM users WHERE id = ?', [userDbId]) : null;
+                
+                // Format kitchen order with ONLY new items
+                const kitchenOrder = {
+                    tableName: tableInfo?.name || 'Walk-in',
+                    items: insertedItems.map(item => ({
+                        name: item.productName,
+                        quantity: item.quantity,
+                        notes: items.find(i => i.productId === item.productId)?.notes || ''
+                    }))
+                };
+                
+                // Print kitchen ticket first (only new items, centered)
+                await printKitchenTicket(kitchenOrder, 'Rio Chicken');
+                console.log(`Kitchen ticket printed for order ${orderIdToUse} (${insertedItems.length} new items)`);
+                
+                // Format customer receipt with ALL items
+                const printOrder = {
+                    id: orderIdToUse,
+                    tableName: tableInfo?.name || 'Walk-in',
+                    serverName: serverInfo?.username || 'Staff',
+                    items: allItems.map(item => ({
+                        name: item.name,
+                        quantity: item.quantity,
+                        totalPriceCents: item.total_price_cents,
+                        notes: item.notes
+                    })),
+                    subtotalCents: subtotalCents,
+                    taxAmountCents: taxAmountCents,
+                    totalAmountCents: totalAmountCents,
+                    paymentMethod: null // Not paid yet
+                };
+                
+                // Then print customer receipt (with QR, all items)
+                await printReceipt(printOrder, 'Rio Chicken');
+                console.log(`Customer receipt printed for order ${orderIdToUse} (${allItems.length} total items)`);
+            } catch (printError) {
+                // Log but don't fail the request if printing fails
+                console.error('Auto-print failed:', printError.message);
+            }
+            
             return { 
                 status: 200, 
                 body: { 
@@ -2248,6 +2319,208 @@ app.post('/restaurant/kitchen/orders/:orderId/reopen', async (req, res) => {
             return;
         }
         res.status(500).json({ error: 'Failed to reopen order', details: error.message });
+    }
+});
+
+// ========================================================================
+// THERMAL PRINTER API
+// ========================================================================
+
+// Get printer status
+app.get('/api/printer/status', async (req, res) => {
+    try {
+        const status = await getPrinterStatus();
+        res.json(status);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to get printer status', details: error.message });
+    }
+});
+
+// Print receipt for an order
+app.post('/api/print/receipt', async (req, res) => {
+    try {
+        const { orderId, businessName } = req.body;
+        
+        if (!orderId) {
+            return res.status(400).json({ error: 'Order ID required' });
+        }
+        
+        // Get order details
+        const order = await dbAsync.get(
+            `SELECT o.*, t.name as table_name, u.username as server_name
+             FROM orders o
+             LEFT JOIN tables t ON t.id = o.table_id
+             LEFT JOIN users u ON u.id = o.user_id
+             WHERE o.id = ?`,
+            [orderId]
+        );
+        
+        if (!order) {
+            return res.status(404).json({ error: 'Order not found' });
+        }
+        
+        // Get order items
+        const items = await dbAsync.all(
+            `SELECT oi.*, p.name
+             FROM order_items oi
+             JOIN products p ON p.id = oi.product_id
+             WHERE oi.order_id = ? AND oi.voided_at IS NULL`,
+            [orderId]
+        );
+        
+        // Get payment info
+        const payment = await dbAsync.get(
+            `SELECT payment_method FROM payments WHERE order_id = ? AND status = 'completed' ORDER BY id DESC LIMIT 1`,
+            [orderId]
+        );
+        
+        // Format order for printing
+        const printOrder = {
+            id: order.id,
+            tableName: order.table_name,
+            serverName: order.server_name,
+            items: items.map(item => ({
+                name: item.name,
+                quantity: item.quantity,
+                totalPriceCents: item.total_price_cents
+            })),
+            subtotalCents: order.subtotal_cents,
+            taxAmountCents: order.tax_amount_cents,
+            totalAmountCents: order.total_amount_cents,
+            paymentMethod: payment?.payment_method
+        };
+        
+        const result = await printReceipt(printOrder, businessName || 'Rio Chicken');
+        res.json({ success: true, message: 'Receipt printed', bytesWritten: result.bytesWritten });
+        
+    } catch (error) {
+        console.error('Print receipt error:', error);
+        res.status(500).json({ error: 'Failed to print receipt', details: error.message });
+    }
+});
+
+// Print daily report
+app.post('/api/print/daily-report', async (req, res) => {
+    try {
+        const { startTime, endTime, businessName, currency } = req.body;
+        
+        // Default to today if no times provided
+        const start = startTime ? new Date(startTime) : new Date(new Date().setHours(0, 0, 0, 0));
+        const end = endTime ? new Date(endTime) : new Date();
+        
+        // Format dates for PostgreSQL
+        const formatForDB = (date) => {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+            return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+        };
+        
+        const startLocal = formatForDB(start);
+        const endLocal = formatForDB(end);
+        
+        // Get orders summary
+        const ordersSummary = await dbAsync.get(
+            `SELECT 
+                COUNT(*) as total_orders,
+                COUNT(CASE WHEN status = 'paid' OR status = 'closed' THEN 1 END) as completed_orders,
+                COALESCE(SUM(CASE WHEN status IN ('paid', 'closed') THEN total_amount_cents ELSE 0 END), 0) as total_revenue_cents,
+                COALESCE(SUM(CASE WHEN status IN ('paid', 'closed') THEN subtotal_cents ELSE 0 END), 0) as subtotal_cents,
+                COALESCE(SUM(CASE WHEN status IN ('paid', 'closed') THEN tax_amount_cents ELSE 0 END), 0) as tax_cents
+             FROM orders 
+             WHERE created_at >= ? AND created_at <= ?`,
+            [startLocal, endLocal]
+        );
+        
+        // Get payments by method
+        const paymentsByMethod = await dbAsync.all(
+            `SELECT 
+                payment_method,
+                COUNT(*) as count,
+                COALESCE(SUM(amount_cents), 0) as total_cents
+             FROM payments 
+             WHERE processed_at >= ? AND processed_at <= ? AND status = 'completed'
+             GROUP BY payment_method`,
+            [startLocal, endLocal]
+        );
+        
+        // Get tables served count
+        const tablesServed = await dbAsync.get(
+            `SELECT COUNT(DISTINCT table_id) as total_tables
+             FROM orders 
+             WHERE created_at >= ? AND created_at <= ? 
+               AND table_id IS NOT NULL 
+               AND status IN ('paid', 'closed')`,
+            [startLocal, endLocal]
+        );
+        
+        // Get top selling items
+        const topItems = await dbAsync.all(
+            `SELECT 
+                p.name,
+                SUM(oi.quantity) as quantity_sold,
+                SUM(oi.total_price_cents) as revenue_cents
+             FROM order_items oi
+             JOIN orders o ON o.id = oi.order_id
+             JOIN products p ON p.id = oi.product_id
+             WHERE o.created_at >= ? AND o.created_at <= ?
+               AND o.status IN ('paid', 'closed')
+               AND oi.voided_at IS NULL
+             GROUP BY p.id, p.name
+             ORDER BY quantity_sold DESC
+             LIMIT 10`,
+            [startLocal, endLocal]
+        );
+        
+        // Format payments
+        const payments = {};
+        paymentsByMethod.forEach(p => {
+            payments[p.payment_method] = {
+                count: p.count,
+                totalCents: Number(p.total_cents)
+            };
+        });
+        
+        // Build report data
+        const reportData = {
+            currency: currency || '$',
+            period: { start: start.toISOString(), end: end.toISOString() },
+            orders: {
+                total: Number(ordersSummary.total_orders),
+                completed: Number(ordersSummary.completed_orders),
+                totalRevenueCents: Number(ordersSummary.total_revenue_cents),
+                subtotalCents: Number(ordersSummary.subtotal_cents),
+                taxCents: Number(ordersSummary.tax_cents)
+            },
+            payments,
+            tablesServed: Number(tablesServed.total_tables),
+            topItems: topItems.map(i => ({
+                name: i.name,
+                quantity: Number(i.quantity_sold),
+                revenueCents: Number(i.revenue_cents)
+            }))
+        };
+        
+        const result = await printDailyReport(reportData, businessName || 'Rio Chicken');
+        res.json({ success: true, message: 'Daily report printed', bytesWritten: result.bytesWritten });
+        
+    } catch (error) {
+        console.error('Print daily report error:', error);
+        res.status(500).json({ error: 'Failed to print daily report', details: error.message });
+    }
+});
+
+// Print raw text (for testing)
+app.post('/api/print/test', async (req, res) => {
+    try {
+        const { text } = req.body;
+        const result = await printRawText(text || 'Test print from UniversalPOS');
+        res.json({ success: true, message: 'Test printed', bytesWritten: result.bytesWritten });
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to print', details: error.message });
     }
 });
 
@@ -2749,7 +3022,7 @@ app.get('/orders/:id', async (req, res) => {
 app.post('/orders/:id/bill', async (req, res) => {
     try {
         const orderId = Number(req.params.id);
-        const { userId } = req.body;
+        const { userId, customerId } = req.body;
 
         const result = await runTransactionalAction(`orders.bill.${orderId}`, req, async () => {
             // CONCURRENCY SAFETY: Lock the order row to prevent concurrent billing
@@ -2759,6 +3032,15 @@ app.post('/orders/:id/bill', async (req, res) => {
             );
             if (!order) {
                 throw createHttpError(404, 'Order not found');
+            }
+
+            // If customerId provided, link customer to order
+            if (customerId) {
+                await dbAsync.run(
+                    'UPDATE orders SET customer_id = ? WHERE id = ?',
+                    [customerId, orderId]
+                );
+                order.customer_id = customerId;
             }
 
             // Guard: Cannot bill already billed/paid/closed orders
@@ -2871,12 +3153,37 @@ app.post('/orders/:id/bill', async (req, res) => {
                 [orderId]
             );
 
+            // Get loyalty customer info if linked
+            let loyaltyCustomer = null;
+            if (order.customer_id) {
+                const customer = await dbAsync.get(
+                    `SELECT c.id, c.first_name, c.last_name, c.phone, c.email,
+                            la.current_points
+                     FROM customers c
+                     LEFT JOIN loyalty_accounts la ON la.customer_id = c.id AND la.is_active = true
+                     WHERE c.id = ?`,
+                    [order.customer_id]
+                );
+                if (customer) {
+                    loyaltyCustomer = {
+                        id: customer.id,
+                        name: `${customer.first_name} ${customer.last_name}`,
+                        firstName: customer.first_name,
+                        lastName: customer.last_name,
+                        phone: customer.phone,
+                        email: customer.email,
+                        points: customer.current_points || 0
+                    };
+                }
+            }
+
             return {
                 status: 200,
                 body: {
                     orderId,
                     orderNumber: order.order_number,
                     status: 'billed',
+                    loyaltyCustomer,
                     // Return both cents (canonical) and dollars (for display)
                     subtotalCents,
                     taxAmountCents,
